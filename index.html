@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Automated Parameter Tuning for Timing Closure in OpenROAD/OpenLane</title>
+  <meta name="description" content="A Grid Search Framework for automated timing closure in OpenROAD/OpenLane on the SkyWater 130nm PDK. Open-source research paper and code." />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface2: #21262d;
+      --border: #30363d;
+      --accent: #58a6ff;
+      --accent2: #3fb950;
+      --warn: #f85149;
+      --text: #e6edf3;
+      --muted: #8b949e;
+      --grad1: #1a1f35;
+      --grad2: #0d1117;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      min-height: 100vh;
+    }
+
+    /* Hero */
+    .hero {
+      background: linear-gradient(135deg, #0d1f40 0%, #0d1117 50%, #1a0d2e 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 80px 24px 60px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 60% 50% at 50% 0%, rgba(88,166,255,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(88,166,255,0.12);
+      border: 1px solid rgba(88,166,255,0.3);
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 12px;
+      color: var(--accent);
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+    .hero h1 {
+      font-size: clamp(1.6rem, 4vw, 2.6rem);
+      font-weight: 700;
+      line-height: 1.25;
+      max-width: 820px;
+      margin: 0 auto 16px;
+      background: linear-gradient(135deg, #e6edf3 30%, #58a6ff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .subtitle {
+      font-size: 1.1rem;
+      color: var(--muted);
+      max-width: 600px;
+      margin: 0 auto 32px;
+    }
+    .hero-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.2s ease;
+      cursor: pointer;
+      border: none;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #0d1117;
+    }
+    .btn-primary:hover { background: #79b8ff; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(88,166,255,0.3); }
+    .btn-secondary {
+      background: var(--surface2);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-secondary:hover { background: #30363d; transform: translateY(-1px); }
+
+    /* Stats bar */
+    .stats-bar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 20px 24px;
+    }
+    .stats-inner {
+      max-width: 960px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: center;
+      gap: 48px;
+      flex-wrap: wrap;
+    }
+    .stat {
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--accent);
+    }
+    .stat-label {
+      font-size: 12px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Main content */
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    section { margin-bottom: 52px; }
+
+    h2 {
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 20px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h2 .icon { font-size: 1.1rem; }
+
+    /* Cards grid */
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .card-icon { font-size: 1.5rem; margin-bottom: 10px; }
+    .card h3 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+    .card p { font-size: 13.5px; color: var(--muted); line-height: 1.6; }
+
+    /* Table */
+    .table-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    thead { background: var(--surface2); }
+    th { padding: 12px 16px; text-align: left; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+    td { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: var(--surface2); }
+    .tag-pass { color: var(--accent2); font-weight: 600; }
+    .tag-fail { color: var(--warn); font-weight: 600; }
+
+    /* Figures */
+    .fig-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .fig-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .fig-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+    .fig-card img { width: 100%; display: block; background: #fff; }
+    .fig-cap { padding: 12px 14px; font-size: 13px; color: var(--muted); line-height: 1.5; }
+
+    /* Parameter table */
+    .param-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+    .param-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px;
+    }
+    .param-name { font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--accent); margin-bottom: 8px; font-weight: 500; }
+    .param-values { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      background: rgba(88,166,255,0.1);
+      border: 1px solid rgba(88,166,255,0.2);
+      border-radius: 6px;
+      padding: 2px 10px;
+      font-size: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--accent);
+    }
+
+    /* Footer */
+    footer {
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      text-align: center;
+      padding: 28px 24px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 600px) {
+      .stats-inner { gap: 24px; }
+      .hero-buttons { flex-direction: column; align-items: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Hero -->
+  <header class="hero">
+    <div class="badge">📄 Research Paper · Open Source EDA</div>
+    <h1>Automated Parameter Tuning for Timing Closure in OpenROAD/OpenLane</h1>
+    <p class="subtitle">A Grid Search Framework on the SkyWater 130 nm PDK — 90 full RTL-to-GDSII runs, zero human intervention.</p>
+    <div class="hero-buttons">
+      <a href="paper.pdf" class="btn btn-primary" id="download-pdf">📥 Download Paper (PDF)</a>
+      <a href="https://github.com/a1vi/openlane-gridsearch-paper" class="btn btn-secondary" id="view-github" target="_blank" rel="noopener">⭐ View on GitHub</a>
+    </div>
+  </header>
+
+  <!-- Stats -->
+  <div class="stats-bar">
+    <div class="stats-inner">
+      <div class="stat"><div class="stat-value">90</div><div class="stat-label">Total Runs</div></div>
+      <div class="stat"><div class="stat-value">37.2%</div><div class="stat-label">Area Reduction</div></div>
+      <div class="stat"><div class="stat-value">51.6%</div><div class="stat-label">Power Reduction</div></div>
+      <div class="stat"><div class="stat-value">200 MHz</div><div class="stat-label">Closure Boundary</div></div>
+      <div class="stat"><div class="stat-value">130 nm</div><div class="stat-label">Technology Node</div></div>
+    </div>
+  </div>
+
+  <main>
+
+    <!-- Abstract -->
+    <section id="abstract">
+      <h2><span class="icon">📖</span> Abstract</h2>
+      <p style="color: var(--muted); font-size: 15px; max-width: 820px;">
+        Timing closure in open-source RTL-to-GDSII flows requires iterative manual adjustment of physical design parameters—a process that is time-consuming and experience-dependent. This paper presents an automated grid search framework that systematically explores the parameter space of the OpenROAD/OpenLane flow targeting the SkyWater 130 nm PDK (SKY130A). The framework varies three key configuration parameters—clock period, core utilization, and placement target density—across a structured 6×5×3 grid, executing each combination as a complete RTL-to-GDSII run. Experiments on the <em>spm</em> benchmark reveal a sharp timing closure boundary: all configurations achieve closure at 200 MHz while all fail at 250 MHz. The framework further characterizes a 37.2% area reduction opportunity and confirms linear power–frequency scaling.
+      </p>
+    </section>
+
+    <!-- Contributions -->
+    <section id="contributions">
+      <h2><span class="icon">🎯</span> Key Contributions</h2>
+      <div class="cards">
+        <div class="card">
+          <div class="card-icon">🤖</div>
+          <h3>Automated Grid Search</h3>
+          <p>Python-based orchestration of 90 full OpenLane Docker runs without any human intervention, with deterministic run tagging for resume support.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">📊</div>
+          <h3>Metrics Extraction Pipeline</h3>
+          <p>Parses OpenLane timing reports to extract WNS, TNS, post-SPEF WNS, core area, cell count, critical path delay, and power after each run.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">⚡</div>
+          <h3>Timing–Area–Power Tradeoff</h3>
+          <p>Quantitative characterization of the full design space for the <em>spm</em> benchmark on SKY130A, establishing the closure boundary at 200 MHz.</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🔓</div>
+          <h3>Open Source Release</h3>
+          <p>All sweep scripts, configuration files, and raw results released publicly to enable full reproducibility of the experiments.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Results Table -->
+    <section id="results">
+      <h2><span class="icon">📈</span> Timing Closure Results</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Clock (ns)</th>
+              <th>Frequency (MHz)</th>
+              <th>Best WNS (ps)</th>
+              <th>Area (μm²)</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>10.0</td><td>100</td><td>0.0</td><td>7,136</td><td class="tag-pass">✅ Closed</td></tr>
+            <tr><td>8.0</td><td>125</td><td>0.0</td><td>8,134</td><td class="tag-pass">✅ Closed</td></tr>
+            <tr><td>7.0</td><td>143</td><td>0.0</td><td>8,134</td><td class="tag-pass">✅ Closed</td></tr>
+            <tr><td>6.0</td><td>167</td><td>0.0</td><td>8,134</td><td class="tag-pass">✅ Closed</td></tr>
+            <tr><td>5.0</td><td>200</td><td>0.0</td><td>8,134</td><td class="tag-pass">✅ Closed</td></tr>
+            <tr><td>4.0</td><td>250</td><td>−50</td><td>5,107–8,134</td><td class="tag-fail">❌ All Fail</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Figures -->
+    <section id="figures">
+      <h2><span class="icon">🖼️</span> Figures</h2>
+      <div class="fig-grid">
+        <div class="fig-card">
+          <img src="fig1_framework.png" alt="Automated parameter sweep framework flow diagram" />
+          <div class="fig-cap"><strong>Fig. 1</strong> — Proposed automated parameter sweep framework with resume-on-interrupt support.</div>
+        </div>
+        <div class="fig-card">
+          <img src="fig2_wns_freq.png" alt="Best WNS per target frequency" />
+          <div class="fig-cap"><strong>Fig. 2</strong> — Best WNS per target frequency. All configurations fail at 250 MHz; all pass at ≤ 200 MHz.</div>
+        </div>
+        <div class="fig-card">
+          <img src="fig3_area_util.png" alt="Core area vs core utilization at 200 MHz" />
+          <div class="fig-cap"><strong>Fig. 3</strong> — Core area vs. core utilization at 200 MHz. 37.2% area reduction from 35% → 55% utilization.</div>
+        </div>
+        <div class="fig-card">
+          <img src="fig4_power_freq.png" alt="Dynamic power vs operating frequency" />
+          <div class="fig-cap"><strong>Fig. 4</strong> — Dynamic power vs. frequency. 51.6% reduction from 250 MHz to 125 MHz. Red = timing violation.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Parameters -->
+    <section id="parameters">
+      <h2><span class="icon">⚙️</span> Parameter Search Space</h2>
+      <div class="param-grid">
+        <div class="param-card">
+          <div class="param-name">CLOCK_PERIOD</div>
+          <div class="param-values">
+            <span class="chip">4.0 ns</span><span class="chip">5.0 ns</span>
+            <span class="chip">6.0 ns</span><span class="chip">7.0 ns</span>
+            <span class="chip">8.0 ns</span><span class="chip">10.0 ns</span>
+          </div>
+        </div>
+        <div class="param-card">
+          <div class="param-name">FP_CORE_UTIL</div>
+          <div class="param-values">
+            <span class="chip">35%</span><span class="chip">40%</span>
+            <span class="chip">45%</span><span class="chip">50%</span>
+            <span class="chip">55%</span>
+          </div>
+        </div>
+        <div class="param-card">
+          <div class="param-name">PL_TARGET_DENSITY</div>
+          <div class="param-values">
+            <span class="chip">0.4</span><span class="chip">0.5</span><span class="chip">0.6</span>
+          </div>
+        </div>
+      </div>
+      <p style="margin-top:14px; color: var(--muted); font-size:14px;">
+        Full Cartesian product: 6 × 5 × 3 = <strong style="color:var(--text)">90 unique configurations</strong> per design, each a complete RTL-to-GDSII run.
+      </p>
+    </section>
+
+    <!-- Keywords -->
+    <section id="keywords">
+      <h2><span class="icon">🏷️</span> Keywords</h2>
+      <div style="display:flex; flex-wrap:wrap; gap:8px;">
+        <span class="chip" style="font-family:Inter,sans-serif; font-size:13px; padding:5px 14px;">OpenLane</span>
+        <span class="chip" style="font-family:Inter,sans-serif; font-size:13px; padding:5px 14px;">OpenROAD</span>
+        <span class="chip" style="font-family:Inter,sans-serif; font-size:13px; padding:5px 14px;">SKY130</span>
+        <span class="chip" style="font-family:Inter,sans-serif; font-size:13px; padding:5px 14px;">Timing Closure</span>
+        <span class="chip" style="font-family:Inter,sans-serif; font-size:13px; padding:5px 14px;">Physical Design Automation</span>
+        <span class="chip" style="font-family:Inter,sans-serif; font-size:13px; padding:5px 14px;">Parameter Sweep</span>
+        <span class="chip" style="font-family:Inter,sans-serif; font-size:13px; padding:5px 14px;">Grid Search</span>
+        <span class="chip" style="font-family:Inter,sans-serif; font-size:13px; padding:5px 14px;">EDA</span>
+        <span class="chip" style="font-family:Inter,sans-serif; font-size:13px; padding:5px 14px;">Open-Source ASIC</span>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <p>Open-source research · <a href="https://github.com/a1vi/openlane-gridsearch-paper" target="_blank" rel="noopener">GitHub Repository</a> · Released for reproducible EDA research</p>
+  </footer>
+
+</body>
+</html>
